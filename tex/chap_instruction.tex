@@ -1,143 +1,146 @@
 % !TeX root = ../Template.tex
-% 本LaTeX模板的一般使用说明
-\chapter{说明}
+\chapter{智能家居事件安全性现状分析}
 
-Again，这是北航论文\LaTeX{}模板（\CTeX{}-Based）\BUAAThesis{}。
+本章对智能家居事件安全相关研究做一整理总结。其中第一节介绍单一事件本身的安全问题相关研究，第二节介绍事件依赖安全问题相关研究。
 
-本\LaTeX{}模板为北航研究生学位论文模板，适用于理工类博士、硕士。本\LaTeX{}模板参考自2015年8月版北航《研究生手册》，根据2020年7月修订版调整，具体要求请参见各自的《手册》，最终成文格式需参考学院要求及打印方意见。本模板中大量内容和说明直接摘抄自《手册》（2015年8月版），基本覆盖了论文内容和格式方面的要求。
+\section{事件安全问题相关研究}
 
-本模板已上传\href{https://github.com/CheckBoxStudio/BUAAThesis}{GitHub}，该仓库中同时也包含了相应的Word模板。
+\subsection{事件安全问题总结}
 
-%-----------------------------
-\section{宏包使用}
+文献[16]基于SmartThings用户论坛以及相关安全研究整理总结了智能家居系统可能出现的安全问题。其中包括事件丢失、事件截断、事件错误、虚假事件等。其中事件丢失、事件截断指由于网络或攻击者等原因造成了丢包，从而使控制系统不能实时准确地感知设备，事件错误指由于设备自身故障造成错误事件的产生，虚假事件指恶意攻击者通过某种攻击手段进行了事件注入。
 
-请将以下文件与此LaTeX文件放在同一目录中：
+文献[14]提到，SmartThings没有对产生事件的过程做访问控制，也没有对SmartApps提供验证事件完整性的方法，故所有SmartApp或SmartDevice都有权限发出任意事件通知。基于这一发现，恶意app可以向Hub发送错误的事件通知，从而导致错误的自动化规则被触发；或者可以阻止发送正确的事件通知，导致正确的规则没有触发。这一攻击方式被称作事件欺骗。文中还指出，此种攻击方式可以让恶意app越权控制其它设备。如恶意app可以对位置事件进行篡改，在用户在外时发送回家的物理事件，从而触发所有订阅此事件的app做出相应改变，导致门锁打开等规则的触发，达到越权控制的目的。
 
-\begin{tabular}{ll}
- \verb|buaa.cls |                 & $\triangleright$ LaTeX宏模板文件 \\
- \verb|bst/GBT7714-2005.bst|      & $\triangleright$ 国标参考文献BibTeX样式文件2005 \\
- \verb|bst/GBT7714-2015.bst|      & $\triangleright$ 国标参考文献BibTeX样式文件2015 \\
- \verb|pic/logo-buaa.eps|         & $\triangleright$ 论文封皮北航字样 \\
- \verb|pic/head-master.eps|       & $\triangleright$ 论文封皮学术硕士学位论文标题\\
- \verb|pic/head-professional.eps| & $\triangleright$ 论文封皮专业硕士学位论文标题\\
- \verb|pic/head-doctor.eps|       & $\triangleright$ 论文封皮学术博士学位论文标题\\
- \verb|pic/head-prodoctor.eps|    & $\triangleright$ 论文封皮专业博士学位论文标题\\
- \verb|tex/*.tex|                 & $\triangleright$ 本模板样例中的独立章节\\
-\end{tabular}\\
+尽管本文使用SmartThings中的SmartApp说明事件欺骗攻击是如何产生的，且SmartApp已经不是SmartThings自动化规则的主流实现方式，但现实系统中的事件不仅仅来源于App发送的事件通知。文献[17][18][19]给出了一些通过改变物理环境来影响智能设备的感知，进而向智能家居系统中注入虚假事件的攻击手段。在这些攻击中，攻击者通过注入超声波来潜在地改变智能家居系统的物理环境，使得智能音箱感知到一个错误的事件，由于人耳无法感知超声波，故用户完全无法察觉攻击的发生。
 
-通过 \verb|\documentclass[| \verb|<thesis>,| \verb|<permission>,| \verb|<printtype>,| \verb|<ostype>,| \verb|<ctexbookoptions>| \verb|]{buaa}|载入宏包：
-\begin{itemize}[leftmargin=3cm]
-  \item[{\tt thesis} $\triangleright$]  论文类型(thesis)，可选值：\\
-    a) 学术硕士论文（\verb|master|）[缺省值]\\
-    b) 专业硕士论文（\verb|professional|）\\
-    c) 学术博士论文（\verb|doctor|）\\
-    d) 专业博士论文（\verb|prodoctor|）
-  \item[{\tt permission} $\triangleright$] 密级(permission)，可选值： \\
-    a) 公开（\verb|public|）[缺省值]\\
-    b) 内部（\verb|privacy|）\\
-    c) 秘密（\verb|secret|=\verb|secret3|）\\
-    --- c.1) 秘密3年（\verb|secret3|）\\
-    --- c.2) 秘密5年（\verb|secret5|）\\
-    --- c.3) 秘密10年（\verb|secret10|）\\
-    --- c.4) 秘密永久（\verb|secret*|）\\
-    d) 机密（\verb|classified|=\verb|classified5|）\\
-    --- d.1) 机密3年（\verb|classified3|）\\
-    --- d.2) 机密5年（\verb|classified5|）\\
-    --- d.3) 机密10年（\verb|classified10|）\\
-    --- d.4) 机密永久（\verb|classified*|）\\
-    e) 绝密（\verb|topsecret|=\verb|topsecret10|）\\
-    --- e.1) 绝密3年（\verb|topsecret3|）\\
-    --- e.2) 绝密5年（\verb|topsecret5|）\\
-    --- e.3) 绝密10年（\verb|topsecret10|）\\
-    --- e.4) 绝密永久（\verb|topsecret*|）
-  \item[{\tt printtype} $\triangleright$] 打印设置(printtype)，可选值： \\
-    a) 单面打印（\verb|oneside|）[缺省值]\\
-    b) 双面打印（\verb|twoside|）
-  \item[{\tt ostype} $\triangleright$] 系统类型(printtype)，可选值： \\
-    a) Windows（\verb|win|）[缺省值]\\
-    b) Linux（\verb|linux|）\\
-    c) Mac（\verb|mac|）
-  \item[{\tt ctexbookoptions} $\triangleright$] {\tt ctexbook}文档类支持的其他选项： \\
-    使用{\tt ctexbookoptions}选项传递{\tt ctexbook}文档类支持的其他选项。
-    例如，使用{\tt fontset=founder}选项启用方正字体以避免生僻字乱码的问题\footnote{需要系统安装方正字体。}。
-\end{itemize}
+文献[13]总结了通过事件欺骗攻击来达成潜在攻击目标的方式。攻击者的攻击目标、攻击设备多样，后果严重。但文中同样提出这些设备可以被附近的传感器感知，从而用作事件验证。如门的状态可以被附近的加速传感器、光线传感器、气压传感器和麦克风感知，这些传感器就可以用作有关开门、关门事件的验证。
 
+为了识别错误事件或虚假事件，可以为每个事件制定指纹。每个指纹与现实生活中的事件一一对应。当Hub收到app或设备的事件通知时，可以通过验证指纹信息确定事件在现实生活中是否真实发生，从而验证事件的正确性。以下展开介绍事件指纹的相关研究。
 
-\setlength{\hangindent}{4em}
-模板已内嵌LaTeX工具包：\\
-{\tt ifthen}，{\tt etoolbox}，{\tt titletoc}，{\tt remreset}，
-{\tt geometry}，{\tt fancyhdr}，{\tt setspace}，{\tt float}，
-{\tt graphicx}，{\tt subfigure}，{\tt epstopdf}，{\tt array}，{\tt enumitem}，
-{\tt booktabs}，{\tt longtable}，{\tt multirow}，{\tt caption}，
-{\tt listings}，{\tt algorithm2e}，{\tt amsmath}，{\tt amsthm}，
-{\tt hyperref}，{\tt pifont}，{\tt color}，{\tt soul}；\\
-For Windows: {\tt times}, {\tt newtxmath}；\\
-For Linux: {\tt newtxtext}, {\tt newtxmath}；\\
-For Mac: {\tt times}, {\tt fontspec}。
+\subsection{事件指纹相关研究}
 
+由于本文着重研究有关错误或虚假事件的防御方案，即事件指纹构建方案，故本节列举并介绍了现有事件指纹相关研究。目前关于构建事件指纹的方法主要分为两种：基于网络流量和基于传感器数据。
 
-模板已内嵌宏：\verb|\highlight{text}|（黄色高亮）。
+在基于网络流量构建事件指纹方面，文献[20]提出了一种用加密的网络流量检测家居设备身份和行为的方法，基于此思路攻击者可以获得用户的隐私信息。论文在识别设备身份方面，使用ZigBee网络流量包的统计特征（包括平均包长度、平均到达间隔和包长度的标准差）作为分类依据，选择算法为K近邻分类。在识别设备行为方面，作者基于活动设备的数据包发送率会显著增加这一想法，将数据包序列划分为长度为W的窗口，提取统计特征，作为监督学习的训练数据集，算法分别选用随机森林分类和K近邻分类，两者效果相似。作者还对设备行为的具体分类和用户行为分类进行了研究，其基本思路相近，均为提取流量包的相关特征，以机器学习算法进行分类。基于上述四个步骤，攻击者可以对加密流量进行分析，获得被攻击者家居环境内设备、用户行为的信息，造成隐私泄露。
 
-请统一使用UTF-8编码。
+文献[3]介绍了Homonit系统，此系统同样是基于网络流量的物理事件指纹构建。与上述文献的工作不同的是，此文献的目的是构建监视系统，识别来自app的错误事件通知。作者认为所有智能家居app的行为都遵循DFA（Deterministic Finite Automation，确定有穷自动机）模型，自动机的每个状态代表app和响应家居设备的状态，自动机的状态转换代表app和设备的交互。作者对app行为构建自动机，从无线通信环境中提取事件特征作为指纹。作者指出，此系统是独立于智能家居系统之外的第三方监视系统，在提高系统安全性的同时未对系统做任何修改。但本系统仍然不能在智能家居系统已经被攻击的情况下正确工作，这是由于若设备被控制，它发出的网络信号则不具有正确性。故此系统不能识别来自设备的错误事件通知。
 
+文献[21]提出了PingPong，可以自动从加密网络流量中提取设备事件的数据包级签名。文中指出，流量包长度的唯一序列通常可以描述某些特定简单事件，并可以利用他们来作为唯一事件指纹。首先，PingPong使用Android Debug Bridge（ADB）和shell脚本在智能手机屏幕上模拟触屏输入，来模拟用户发起的设备事件，同时在路由器上使用tcpdump抓包。之后对抓到的数据包进行过滤，只保留源或目的IP为智能家居设备的，同时选择一个时间窗，只保留事件发生后一小范围内的包，然后过滤掉所有TCP或TLS的控制包（如TCP握手挥手和TLS密钥协商）。之后通过构建数据包对，并使用无监督学习算法提取与事件相关的数据包对，并通过相关数据包对构建事件数据包级签名。
 
+在基于传感器数据的指纹方面，文献{IoT-CAD}提出了IoT-CAD，通过IoT系统中的传感器来捕捉物理环境状态从而识别异常。通过在IoT系统中安装持续性监测的传感器，并定期在时间窗口内产生数据快照，构建快照向量，来作为指纹描述此时刻IoT系统的状态。
 
-%-----------------------------
-\section{选项设置}
+文献[22]指出，尽管智能家居内的传感器具有异构性，但它们受相同的物理事件影响都有一定的表现方式。文献[23]提出了基于异构传感器数据来获得事件指纹的方法。作者收集除了摄像头视频数据之外全部传感器的数据，之后提供了两种机器学习的方法：人工标定训练数据集的标签，然后进行两层的SVM分类；缺少人工标定的标签，则进行非监督式机器学习，首先对数据降维，之后使用最大期望算法进行聚类。
 
-\begin{itemize}[leftmargin=3cm]
-  \item[{\tt  $\backslash$refcolor} $\triangleright$]  开启/关闭引用编号颜色，包括参考文献，公式，图，表，算法等\\
-  \texttt{on}：开启 [默认]\\
-  \texttt{off}：关闭
-  \item[{\tt $\backslash$beginright} $\triangleright$]  摘要和正文从右侧页开始\\
-  \texttt{on}：开启 [默认]\\
-  \texttt{off}：关闭
-  \item[{\tt $\backslash$emptypageword} $\triangleright$]  空白页留字
-  \item[{\tt $\backslash$Listfigtab} $\triangleright$]  是否使用图标清单目录\\
-  \texttt{on}：开启 [默认]\\
-  \texttt{off}：关闭
-\end{itemize}
+文献[13]设计了一个办公室的日常场景，使用树莓派自行构建异构传感器体系，收集了时间跨度为两周的传感器数据，并记录物理世界中发生的真实事件为其标签，作为监督学习的训练数据集。由于收集的时间数据是连续的，作者使用网格搜索选定了针对不同事件的时间窗，提取各个传感器与事件的相对互信息量作为指纹特征，并选择指纹特征大的数据进行SVM分类。这一指纹选取方案可以保证在智能设备被控制时仍有效地检测事件欺骗攻击。
 
+\begin{table}[h]
+	\caption{智能家居事件指纹相关研究总结}
+	\label{tab:event_fin_refs}
+	\centering
+	\begin{tabular}{ccccccccc}
+		\toprule
+		\multirow{2}{*}{指纹来源}  & \multirow{2}{*}{文献} &  \multicolumn{4}{c}{网络流量包特征}   &  \multicolumn{2}{c}{传感器特征}     & \multirow{2}{*}{学习算法} \\ 
+		\cline{3-8}
+		&                             &    \multicolumn{1}{c}{TS}     &     \multicolumn{1}{c}{L}     &    \multicolumn{1}{c}{AD}     &     P     &    \multicolumn{1}{c}{TD}     &    FD     &                                     \\ 
+		\midrule
+		\multirow{3}{*}{网络流量数据} &  Peek-a-boo & \multicolumn{1}{c}{\checkmark} & \multicolumn{1}{c}{\checkmark}  & \multicolumn{1}{c}{$\times$}  & $\times$  &     \multicolumn{1}{c}{-}     &     -     &                 KNN                 \\
+		&           Homonit            & \multicolumn{1}{c}{\checkmark} & \multicolumn{1}{c}{\checkmark} & \multicolumn{1}{c}{\checkmark} & $\times$  &     \multicolumn{1}{c}{-}     &     -     &                 DFA                 \\
+		&          PingPong           & \multicolumn{1}{c}{\checkmark} & \multicolumn{1}{c}{$\times$}  & \multicolumn{1}{c}{$\times$}  & \checkmark &     \multicolumn{1}{c}{-}     &     -     &               DBSCAN              \\
+		\multirow{3}{*}{传感器数据}      &           IoT-CAD            &     \multicolumn{1}{c}{-}     &     \multicolumn{1}{c}{-}     &     \multicolumn{1}{c}{-}     &     -     & \multicolumn{1}{c}{\checkmark} & $\times$  &                 RNN                 \\
+		&      Synthetic sensors       &     \multicolumn{1}{c}{-}     &     \multicolumn{1}{c}{-}     &     \multicolumn{1}{c}{-}     &     -     & \multicolumn{1}{c}{\checkmark} & \checkmark &               SVM/EM                \\
+		&           Peeves             &     \multicolumn{1}{c}{-}     &     \multicolumn{1}{c}{-}     &     \multicolumn{1}{c}{-}     &     -     & \multicolumn{1}{c}{\checkmark} & $\times$  &                 SVM                 \\ 
+		\hline
+		\multicolumn{9}{l}{ \footnotesize 注: TS--时间戳; L--包长度; AD--地址; P--协议; TD--时域; FD--频域}\\		 
+		\bottomrule
+	\end{tabular}
+\end{table}
 
-%-----------------------------
-\section{章节撰写}
-本模板支持以下标题级别标题级别：
+\subsection{现有研究不足}
 
-\begin{tabular}{ll}
-  \verb|\chapter{章}|              & $\triangleright$ 第一章 \\
-  \verb|\chapter*{无章号章}|       & $\triangleright$ 无章号章 \\
-  \verb|\chaptera{无章号有目录章}| & $\triangleright$ 无章号有目录章 \\
-  \verb|\summary|                  & $\triangleright$ 总结\\
-  \verb|\appendix|                 & $\triangleright$ 附录\\
-  \verb|\achievement|              & $\triangleright$ 攻读学位期间取得的成果\\
-  \verb|\acknowledgments|          & $\triangleright$ 致谢\\
-  \verb|\biography|                & $\triangleright$ 作者简介\\
-  \verb|\section{节}|              & $\triangleright$ 1.1 节\\
-  \verb|\subsection{条}|           & $\triangleright$ 1.1.1 条\\
-  \verb|\subsubsection{A}|         & $\triangleright$ 1.1.1.1 A\\
-  \verb|\paragraph{a}|             & $\triangleright$ 1.1.1.1.1 a\\
-  \verb|\subparagraph{a)}|         & $\triangleright$ 1.1.1.1.1.1 a)\\
-\end{tabular}
+表~\ref{tab:event_fin_refs}总结了上述提到的智能家居事件指纹相关研究。总体来说，现有研究的方法大多局限于从特征工程到机器学习的方案，将指纹数据来源直接看做一个大型数据集，从其中提取并筛选特征，然后选用适当的学习算法。
 
-%-----------------------------
-\section{注意事项}
-\begin{itemize}
-  \item[$\triangleright$] \textit{中文斜体}将转换为楷体；
-  \item[$\triangleright$] \textbf{中文粗体}在Windows（From WeiQM）和Mac（From CaiBW）下转换为黑体，Linux下正常（From QiaoJF）；
-  \item[$\triangleright$] \verb|\label{<text>}|中不能使用中文；
-  \item[$\triangleright$] 浮动体与正文之间的距离是弹性的，根据内容调整，不太好控制；
-  \item[$\triangleright$] 命令符与汉字之间请注意加空格以避免undefined错误（pdfLaTeX下好像一般不存在这个问题，主要在XeLaTeX编译环境下发生）；
-\end{itemize}
+然而，由于智能家居系统中事件的多样性，使用一套通用方法论很难适用于所有事件。例如，Peeves[13]对开门、关门等具有瞬时影响的事件的准确率几乎达到了100\%，然而这一效果无法泛化到开加热器等具有持续性影响的事件。
 
-%-----------------------------
-\section{ToDo}
-\begin{itemize}
-  \item[$\triangleright$] 数学环境的行间隔；
-  \item[$\triangleright$] 参考文献的行间隔；
-\end{itemize}
+除此之外，某些特征工程的手段可能并不适用于智能家居场景。具体来说，减小特征数量的手段可以分为两种，特征选择（feature selection）和特征抽取（feature extraction），前者是选取原始特征集合的一个有效子集，后者是将原始高维特征空间映射到一个低维空间上。对智能家居场景来说，使用特征选择的好处在于可以减小模型线上验证时需要的数据来源，如使用特征选择的手段对传感器数据特征进行筛选，可以减小用于事件真实性验证的传感器数量，减小部署成本。而特征抽取手段（如Synthetic sensors[23]的自动编码器）没有这一优势。
 
-%-----------------------------
-\section{意见及问题反馈}
+\section{事件依赖安全问题研究}
 
-\indent E-mail：weiqm@buaa.edu.cn \\
-\indent GitHub：\href{https://github.com/CheckBoxStudio/BUAAThesis/issues}{https://github.com/CheckBoxStudio/BUAAThesis/issues}
+\subsection{事件依赖提取与表示}
+
+由于智能家居系统的事件依赖由物理环境和用户设置的自动化规则决定，故不同场景下的事件依赖是截然不同的。为了研究某智能家居系统的事件依赖安全问题，需要先进行此特定系统事件依赖的提取和表示。本节首先着重介绍现有研究中提取事件依赖的方法。
+
+对大部分智能家居平台而言，由于显式事件依赖直接由系统中的触发-响应自动化规则直接定义，而规则通常是由用户设定，或在app中包含，故这些规则很容易通过代码分析、配置文件解析等手段获取[9][14][26][27]。如SmartThings平台的规则通常包含在SmartApps里或.json配置文件中，Home Assistant平台的规则通常包含在一个.yaml文件中。然而，隐式事件依赖在系统中没有类似代码或配置文件这样的显式定义，故需要结合智能家居物理环境进行考虑[9][14]，或是直接在真实环境中进行动态测试来提取[13]。
+
+在显式事件依赖提取方面，通常使用代码分析的手段，包括静态分析（AST、调用关系图等）或动态分析（代码插桩、建模、符号执行等）。以下介绍现有显式事件依赖提取相关的研究。
+
+文献[24]提出了IoTSan，通过静态分析的方法从IoT应用程序源代码中提取依赖图（dependency graph），依据依赖关系建立状态模型。具体来说，IoTSan首先通过一个App依赖分析模块从SmartApp的groovy源码中寻找事件订阅函数subscribe()、读设备状态的API以及通过schedule()方法定义的定时任务来提取输入事件，并通过调用的API提取输出事件，从而构建完整的事件依赖。然后本研究使用Bandera Tool Set工具对源码进行代码行为建模，由于此工具只接收java代码输入，故本研究开发了一个groovy转java的翻译器，由上述步骤得到一个由Promela语言描述的代码逻辑模型。使用基于应用程序逻辑的建模方法可以更加准确、细粒度地描述智能家居中的事件依赖关系，但由于方法限制，其只能提取到应用程序内定义的规则，而无法衡量物理环境参与其中后的影响，也就是其不能对隐式事件依赖进行提取或识别。
+
+文献[26]提出了Soteria，通过静态分析的手段验证物联网系统中的App或其他行为的安全性和正确性。Soteria使用一种中间表示（Intermediate representation，IR）来描述物联网应用程序的逻辑。具体来说，与之前介绍的静态分析类似，Soteria检测源代码中调用智能设备的函数以及定义触发-响应的函数。然后本研究通过中间表示IR提取应用程序的状态模型，包括智能设备的状态以及状态转换（即事件）。本研究通过模型检查来判断事件的行为是否符合安全属性。与IoTSan[24]类似，由于只从物联网应用程序中提取事件依赖关系，所以本研究无法对隐式事件依赖关系进行识别。
+
+显式事件依赖可直接基于App源代码或配置文件进行提取，较为简单、直观、准确；而隐式事件依赖需要结合智能家居的物理环境进行考虑，这些方法通常需要挖掘不同事件和物理环境的语义并进行综合，通常较为复杂，不够准确。以下介绍隐式事件依赖提取相关研究。
+
+文献[25]提出了IoTMon，来识别和分析IoT App之间的交互链，从而得到事件依赖关系。本研究首先使用静态分析方法从SmartApp的groovy源码中提取应用内交互规则，具体地，首先对App构建抽象语法树（Abstract Syntax Tree，AST），然后寻找声明自动化规则的代码段，如SmartApp中的installed()和updated()函数，根据其中定义的事件订阅函数subscribe()以及调用的handle函数总结出触发-响应规则。之后，本研究使用NLP对SmartApp的描述做分词和词性标注工作，提取其中的名词，并对这些名词作聚类，选择每个类别中具有代表性的进行人工审查，最终的结果作为物理通道名（如温度、湿度）。之后根据具体事件和物理通道的关系进行不同App之间的关联，从而识别隐式的事件依赖关系。
+
+文献[16]提出了HAWatcher，使用相关性（Correlation）的概念来表达事件与事件之间、事件与物理环境状态之间的语义信息。与上述研究类似，本研究首先SmartApp的代码进行符号执行来获取中间表示IR，并将每个app的语义都以触发-条件-响应的形式来表示。之后，本研究通过NLP对物理环境进行提取，并以假设的方式提出设备属性和物理属性之间的相关性，最后再通过事件日志对上述所有假设的相关性进行检验。
+
+文献[27]提出了IoTGaze，通过无线流量特征和App的描述和UI构建行为基准模型，并检测运行时安全违规行为。本研究跳出物联网平台和应用程序内部的角度，从无线流量的角度重新思考IoT安全和隐私问题，通过收集无线射频环境内的通信数据包，构建基于程序的无限上下文。具体来说，本研究首先提取无线数据包的特征来将通信流量与事件相关联，然后通过发现事件时间性依赖来为物联网系统构无线上下文，最后通过用户界面（UI）提取实际用户预期的上下文，并与无线上下文进行对比，来发现物联网的行为异常。由于通过无线上下文来研究事件和事件间依赖，IoTGaze同样可以检测和识别到隐式事件依赖。
+
+除常规的基于语义和机器学习的方法外，文献[15]提出了IoTSafe，通过设计一个动态测试方法来对物联网系统中的显式和隐式交互行为进行准确挖掘。与IoTMon类似，本研究首先通过代码分析提取App内交互规则，并通过NLP进行分词、聚类、人工审查，提取物理通道信息。然后设计动态测试样例的生成方法，目的是遍历地测试所有设备的所有运行状态对物理环境的影响，同时对于单房间不同设备的并行和多房间并行测试做出优化，减少动态测试时间。通过动态测试来补充设备与环境、环境与设备之间的交互关系，从而完善交互规则。IoTSafe是目前第一个使用动态测试的方法对事件依赖关系进行提取的研究，其优点是能够直接准确地提取传统静态分析方法难以提取到的隐式事件依赖，缺点是由于直接使用现实环境进行测试，若无敏感设备或状态的限制，可能会对用户的人身或物理财产造成影响。
+
+除此之外，文献[28]提出了H$\epsilon$lion，通过识别用户驱动的家居自动化规则序列的规律性，来通过语义的方式表达用户活动规律。基于人类使用的语言通常是可预测的这一假设，本研究使用统计语言模型，来通过已发生的事件预测未来发生事件的可能性。本研究首先通过用户调查的方式收集以某些特定结构表达的用户使用规律，之后通过解析上述自然语言得到事件令牌，然后使用一个n-gram方法来学习用户在智能家居自动化规则中的规律性。
+
+在事件依赖的可视化表达方面，IoTMon[14]给出了自己的表达方案，使用有向图（文中称为交互链图）来表达App内部和App之间的依赖关系。其中，图的节点有许多类型，包括触发（形式可以是事件、传感器）、响应（形式为事件）、物理通道等，尽管以人的角度实现了一条链的可读性，但结点的类型过多也复杂化了此有向图。此外，HAWatcher[16]将智能家居系统的相关性分为两种：事件到事件，以及事件到状态。具体来说，事件到事件的相关性表示为$E\rightarrow E$，即某一事件触发另一事件的发生；事件到状态的相关性表示为$E\rightarrow S$，即某一事件的发生导致了某传感器的数值以某规律变化。从具体含义上来看，HAWatcher对相关性的定义与本研究对事件依赖的定义类似。
+
+本论文拟在使用一种更统一、准确的表达方式，通过统一有向图节点的类型，并在图的边中加入信息予以辅助说明，来实现有向图的简化，完善事件依赖表达方案，并与后续的异常事件依赖检测进行对接。
+
+\subsection{异常事件依赖检测}
+
+异常事件依赖指超出代码原本逻辑或超出用户期望的事件依赖，其可能会破坏智能家居所在的物理环境，造成安全隐患；或被攻击者利用，通过事件依赖链发起跨事件的攻击。异常既可以由用户自身造成（如误配置或规则冲突等），也可以由潜在的攻击者造成（如恶意代码等）。为了检测这种超出用户期望的异常事件依赖，现有研究对智能家居系统中的正常行为进行建模，利用机器学习方法进行分类或聚类进行异常范围的划分[14][30]；或进行程序级别行为的精确建模，然后动态地监控系统或代码的行为，对基线之外的事件依赖判定为异常[9][26][28][31]。
+
+文献[29]提出6thSense，一种基于上下文感知的入侵检测系统，用于全面检测智能设备中基于传感器的攻击手段。本研究通过实时观察传感器数据，并根据智能设备确定当前的传感器是否是恶意的，来确定设备的上下文；同时，本研究通过观察用户不同任务的传感器数据变化，将传感器数据与用户活动相关联；然后该方法使用了三种基于机器学习的检测机制（马尔科夫链、朴素贝叶斯和LMT）进行基于传感器的恶意行为的检测。本研究主要侧重于通过传感器来对正常行为进行建模，来上层地、通用地检测一些攻击手段，而非针对事件依赖异常的检测。
+
+IoTMon[25]通过之前提取的应用程序交互关系来检测可能会对物理环境造成危险影响的交互关系，首先对所有的交互进行向量化，然后进行行为建模和聚类，将离群的交互行为认为是有危险性的。具体来说，IoTMon首先分析了不同物理通道的出现频率；然后从出现频率最高的物理通道开始，循环地为与当前物理通道的相关性最高的物理通道赋递增、等间隔的值，其中相关性由共同出现的频率计算；然后对每个事件依赖构建向量，每一维代表其对某物理通道的影响。从结果上来看，此方法有着77\%的精准率，其效果不是很理想的原因主要在于构建的事件依赖向量过于简单，每一维的值是固定的。且本研究只对单一事件依赖进行异常的检测，而并没有考虑多层事件依赖可能带来的危险。
+
+除上述静态异常检测外，一些研究也提出了动态运行时的异常检测方法。IoTSan[24]对IoT中可能出现的安全问题进行了检测，包括物理状态异常和敏感信息的泄露。本研究使用一个输出分析器，使用基于启发式的算法，来验证智能应用程序的安装阶段和运行阶段。在安装阶段，输出分析器枚举所有可能的配置并对实际配置进行对比，来判断应用程序是否是恶意的；在之后的阶段，新应用程序会与已安装的应用程序进行分析，观察是否有异常情况，从而界定是否安装此App。此方法能够提取由不同App带来的规则冲突或恶意规则问题，从而对用户误配置或攻击者的恶意代码注入进行一定程度的防御。
+
+HAWatcher[16]通过提取出的智能家居相关性，设计了一个异常检测模块，此模块订阅了家居系统的所有事件，并与家居自动化系统并行运行。利用之前提取的事件、传感器的相关性作为行为模型，收集实时的智能家居设备事件，判断其前序和后序事件进行上下文检查，从而检测偏离行为模型的异常事件关联。
+文献[30]提出了IoTGuard，一个基于策略的物联网动态安全防护系统。本研究通过模拟应用程序的生命周期，修改IoT应用程序的源代码，收集应用程序运行时信息并存储在动态模型中，然后直接对应用程序运行环境中的不安全和不期望的状态进行阻止，通过监视IoT和“触发-响应”平台应用程序的行为，保护用户免受不安全的设备状态的影响。
+
+文献[31]提出了HomeGuard系统，用于检测跨应用程序干扰（Cross-App Interference，CAI）问题。在安装每个新的App时，此系统都会介入，从已安装的App出发进行规则干扰的检测。具体来说，本研究通过设计实现了一个符号执行器，从SmartApps中提取规则语义信息，利用可满足型模型理论检测冲突。除此之外，本研究还将App的规则语义与用户配置的规则结合以进一步检测威胁。
+
+文献[32]首先全面分析了出发物联网平台规则间漏洞的空间，将现有研究提出的漏洞进行分类和系统化，然后本研究提出了iRuler，使用形式化方法来检测这些漏洞。具体来说，通过可满足性模型理论（Satisfiability Modulo Theories，SMT）来进行模型检查，从而发现规则间漏洞。最后，本研究同样通过NLP来对App描述来进行处理，从而推断规则间信息。
+
+文献[33]检测了IFTTT平台小程序（applet）可能出现的一些问题，其中IFTTT也是一个以触发-响应为自动化规则模板的智能家居平台。本研究通过两种基于URL的攻击展示了IFTTT小程序的隐私泄露问题，并对在野的IFTTT小程序进行了分析，根据其来源的敏感程度进行了分类，发现了30％的applet可能侵犯了隐私。除此之外，本文还提出了一种信息流控制的框架，中断从私密source到敏感sink的访问控制机制，同时监测小程序输出的信息流，来加强小程序的隐私保护。
+
+对上述动态异常检测的研究而言，由于其模型刻画准确的系统行为，故其准确性强，可解释性强，但只能实时做出异常检测，设计一个通用的防御策略比较难以实现。
+
+\subsection{现有研究不足}
+
+\begin{table}[h]
+	\caption{智能家居事件依赖安全相关研究总结}
+	\label{tab:event_dep_refs}
+	\centering
+	\begin{tabular}{cccccc}
+		\toprule
+		\multirow{2}{*}{文献} & \multirow{2}{*}{主要方法} & \multicolumn{2}{c}{事件依赖提取} & \multicolumn{2}{c}{异常事件依赖检测} \\
+		\cline{3-6}
+		&                       & 显式           & 隐式          & 静态            & 动态           \\
+		\midrule
+		IoTSan{[}26{]}      & 代码分析、模型检查             & \checkmark            & $\times$           & -             & \checkmark            \\
+		Soteria{[}27{]}     & 代码分析、模型检查             & \checkmark            & $\times$           & $\times$             & $\times$            \\
+		IoTMon{[}14{]}      & 代码分析、NLP、聚类           & \checkmark            & \checkmark           & \checkmark             & -            \\
+		HAWatcher{[}9{]}    & 代码分析、NLP、假设检验         & \checkmark            & \checkmark           & -             & \checkmark            \\
+		IoTGaze{[}28{]}     & NLP、事件转移图             & \checkmark            & \checkmark           & $\times$             & $\times$            \\
+		IoTSafe{[}13{]}     & 动态测试                  & \checkmark            & \checkmark           & $\times$             & $\times$            \\
+		6thSense{[}30{]}    & 马尔可夫链、朴素贝叶斯、LMT       & $\times$            & $\times$           & \checkmark             & -            \\
+		IoTGuard{[}31{]}    & 代码插桩、代码运行监控           & \checkmark            & $\times$           & -             & \checkmark            \\
+		HomeGuard{[}12{]}   & 代码分析、SMT              & \checkmark            & $\times$           & -             & \checkmark            \\
+		{[}32{]}            & 形式化方法、SMT             & $\times$            & $\times$           & -             & \checkmark        \\
+		\bottomrule    
+	\end{tabular}
+\end{table}
+
+表~\ref{tab:event_dep_refs}总结了现有事件依赖提取和异常依赖检测相关研究。对静态异常事件依赖检测方法而言，其优点是能够全面地分析系统中的所有事件依赖，并且在系统启动或正式运行之前发现潜在的威胁，但缺点是由于引入通用的机器学习模型来刻画不同种类的事件依赖，其准确性严重依赖于特征工程和模型选择，而现有研究在特征工程方面没有很细粒度的设计，这是由于事件依赖本身的语义比较复杂，故难以设计特征的计算方法；而对动态异常分析而言，由于其模型刻画准确的系统行为，故其准确性强，可解释性强，但只能实时做出异常检测，设计一个通用的防御策略比较难以实现。
+
+此外，现有研究大多数集中于两事件之间依赖的异常检测，如IoTMon[14]，没有考虑多跳的事件依赖链的异常，例如用户配置了$E_{away\ home}\rightsquigarrow E_{light\ off}$以及$E_{light\ off}\rightsquigarrow E_{window\ open}$两条事件依赖，其分别都是符合用户预期的，但若没有多余条件限制，$E_{away\ home}\rightsquigarrow E_{light\ off}\rightsquigarrow E_{window\ open}$的事件依赖链成立，则会导致用户离开家后窗户被打开，造成可能的危险情况。
+

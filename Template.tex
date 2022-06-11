@@ -75,7 +75,11 @@
 %    字体的前提下可通过fontset=founder选项常用方正字体。
 %=================================================================
 
-\documentclass[master,privacy,twoside,win]{buaa}
+\documentclass[master,public,twoside,win]{buaa}
+\usepackage{multirow}
+\usepackage{amssymb}
+\usepackage{titletoc}
+\usepackage{url}
 
 %=================================================================
 % 开启/关闭引用编号颜色：参考文献，公式，图，表，算法 等……
@@ -113,32 +117,32 @@
 
 %%=================================================================
 % 论文题目及副标题-{中文}{英文}
-\Title{北航硕博士学位论文~\LaTeX{}模板\BUAAThesis{}}{\LaTeX{} Template of Beihang University Thesis \BUAAThesis{}}
-\Subtitle{版本 \BUAAThesisVer{}}{Version \BUAAThesisVer{}}
+\Title{基于上下文分析的智能家居事件安全性研究}{Context-based smart home event security analysis}
+%\Subtitle{版本 \BUAAThesisVer{}}{Version \BUAAThesisVer{}}
 
 % 学科大类,默认工学
 % \Branch{工学}
 
 % 院系,专业及研究方向
-\Department{宇航学院}
-\Major{控制科学与工程}
-\Feild{模式识别与智能系统}
+\Department{网络空间安全学院}
+\Major{网络空间安全}
+\Feild{物联网安全}
 
 % 导师信息-{中文名}{英文名}{职称}
-\Tutor{导师姓名}{Tutor}{教授}
-\Cotutor{副导师姓名}{Cotutor}{高工}
+\Tutor{毛剑}{Mao Jian}{副教授}
+%\Cotutor{副导师姓名}{Cotutor}{高工}
 
 % 学生姓名-{中文名}{英文名}
-\Author{学生姓名}{Student}
+\Author{徐骁赫}{Xu Xiaohe}
 % 学生学号
-\StudentID{ID123456}
+\StudentID{SY2039125}
 
 % 中图分类号
 \CLC{TP391.4}
 
 % 时间节点-{月}{日}{年}
-\DateEnroll{09}{01}{2015}
-\DateGraduate{03}{31}{2018}
+\DateEnroll{09}{01}{2020}
+\DateGraduate{01}{15}{2023}
 \DateSubmit{01}{10}{2018}
 \DateDefence{03}{01}{2018}
 
@@ -165,7 +169,7 @@
 }
 % 关键字-{中文}{英文}
 \Keyword{%
-    北航，学位论文，博士，硕士，中文，\LaTeX{}模板，\BUAAThesis{}
+    北航，学位论文，博士，硕士，中文
   }{%
     News, BGR, Shark
 }
@@ -205,7 +209,9 @@
 % 说明
 \input{tex/chap_instruction}
 
-% 示例
+% 正文
+\input{tex/chap_smarthome}
+\input{tex/chap_eventveri}
 \input{tex/chap_sample}
 
 % 总结
@@ -224,12 +230,5 @@
 
 % 致谢
 \input{tex/chap_acknowledge}
-
-% 作者简介
-\input{tex/chap_biography}
-
-\vspace{5cm}
-
-This is \BUAAThesis{}, Happy TeXing! --- from WeiQM.
 
 \end{document}
