@@ -1,2 +1,451 @@
-\chapter{智能家居轻量级事件认证}
+\chapter{基于传感器数据的智能家居轻量级事件认证}
+
+\section{引言}
+
+\subsection{事件指纹介绍}
+\label{fingerprint_description}
+
+由于智能家居场景中的事件对应现实世界中的物理状态变化，故根据物理规律，事件会导致测量物理通道的传感器按照特定的模式变化。例如，打开或关闭门会导致门上及周边的加速度传感器以一定规律波动，如图\ref{fig:ev_fluctuate}所示。此外，这种对物理通道的影响仅仅体现在事件发生时间戳周围的短时间窗口内发生，即加速度传感器的变化仅局限在“开门”和“关门”事件前后的短短几秒内。
+
+\begin{figure}[!h]
+	\centering
+	\includegraphics[width=.6\textwidth]{pic/chap4/ev\_fluctuate}
+	\caption{事件引起的传感器读数波动}
+	\label{fig:ev_fluctuate}
+\end{figure}
+
+针对上述观察到的规律，可以设计一种基于时间窗的传感器特征提取策略，通过在传感器数据序列上加窗，来建立传感器数据与物理事件之间的关联，从而进一步使用特征值构建事件指纹。事件指纹其含义为能够具体刻画某一事件发生的一组特征，用户可以通过识别事件指纹来准确判定事件的发生与否。基于异构传感器的事件指纹信息源自日常生活中的各组传感器数据，通过在传感器数据中提取受事件影响的变化，从而找寻事件与各传感器数据之间的关联。
+
+本文提出的轻量级事件认证方法EGuard以及目前典型的通过传感器构建事件指纹的研究\upcite{birnbach_peeves_2019, laput_synthetic_2017}均使用了加窗的思路，基于窗口内数据进行特征构建，并训练机器学习模型进行判决。
+
+\subsection{目标问题}
+
+\begin{figure}[!h]
+	\centering
+	\includegraphics[width=.6\textwidth]{pic/chap4/ev\_spoof1}
+	\caption{事件欺骗攻击}
+	\label{fig:ev_spoof1}
+\end{figure}
+
+\begin{figure}[!h]
+	\centering
+	\includegraphics[width=.6\textwidth]{pic/chap4/ev\_spoof2}
+	\caption{使用事件指纹检测事件欺骗攻击}
+	\label{fig:ev_spoof2}
+\end{figure}
+
+在智能家居系统中，由用户手动触发或自动化规则触发的物理事件可认为是符合用户意图的，这一类事件是合法的、安全的；而攻击者通过欺骗攻击注入的虚假事件意在破坏智能家居系统的正常运行规律，越权控制家居设备，是非法的、不安全的。需要注意的是，虚假事件无法在物理空间中更改任何设备状态，只能欺骗智能家居系统的控制中枢，或者间接地利用自动化规则使控制中枢下发错误指令。
+
+EGuard构建的事件指纹用于对系统中的虚假事件进行检测，从而达到事件认证的目的。具体来说，EGuard使用智能家居系统中常见的异构传感器系统实时验证事件真实性，在控制中枢接收到事件消息时对其进行认证，有效拦截虚假事件，阻止事件欺骗攻击发生。我们假设EGuard在线运行期间，用于验证的传感器和进行运算的相关服务器是可信的，而智能设备报告的原始事件是不可信的。
+
+下面举一个日常生活中的实例来说明上述问题。如图\ref{fig:ev_spoof1}所示，攻击者希望针对用户的智能家居系统展开事件欺骗攻击，其实施手段为发送虚构的“关灯”事件，期望触发系统“白天关灯则拉开窗帘”的自动化规则，最终达到间接控制窗帘拉开的目的。正常合法的关灯事件（在拉开窗帘之前）必然会造成室内光强变弱，即光线传感器数值下降可以作为关灯事件的指纹，但由于事件为虚构，事实上并没有关灯，光线传感器不会检测到光强变弱，故系统若检测到光线传感器数据保持不变，即并没有识别到“关灯”事件的指纹，则可判定此事件为假，从而可进一步阻止此事件通知触发自动化规则，窗帘则不会被拉开，如图\ref{fig:ev_spoof2}所示。
+
+\section{EGuard系统设计}
+
+\begin{table}
+	\begin{center}
+		\caption{List of the major variables}
+		\begin{tabular}{rl}
+			\toprule
+			\textbf{Variable}           & \textbf{Definition}                                \\
+			\midrule
+			$S_i(t)$                    & The data sequence of the $i$th sensor              \\
+			$t_j$                       & The timestamp of the $j$th event occurrence        \\
+			$l_j$                       & The label of the $j$th event occurrence            \\
+			$l$                         & The label sequence composed of $l_j$               \\
+			$(t^-_{E,S_i},t^+_{E,S_i})$ & Time window for event $E$ and sensor $S_i$           \\
+			$\vec{F_{S_i}(t_j)}$          & The feature vector of sensor $S_i$ at the timestamp $t_j$          \\
+			$f_{S_i,m}(t_j)$              & The $m$th feature value of sensor $S_i$ at the timestamp $t_j$       \\
+			$f_{S_i,m}$                 & The $m$th feature value sequence of sensor $S_i$ aggregated from $f_{S_i,m}(t_j)$ \\
+			$\vec{F(t_j)}$                & The feature vector including all sensors at the timestamp $t_j$    \\
+			\bottomrule
+		\end{tabular}
+		\label{tab:notation}
+	\end{center}
+\end{table}
+
+本节详细介绍EGuard的设计细节。具体来说，EGuard分为五个模块：1）事件标注模块；2）特征构建模块；3）传感器选择模块；4）事件指纹构建模块；5）机器学习分类模块。
+
+图\ref{fig:ev_intro}为EGuard的整体框架图。其中，事件标注模块根据事件日志记录对事件添加标签，得到包含标签的事件三元组；特征构建模块根据预定指标选取传感器数据序列的最佳时间窗口，并对其进行加窗，得到传感器特征值；传感器选择模块通过训练神经网络对特征的重要性进行衡量，只保留有代表性的、富信息的传感器；事件指纹构建模块根据传感器数据序列和被选传感器集合计算得到传感器特征，获得事件指纹；机器学习分类模块通过上述传感器特征，结合事件三元组中的标签训练得到用于判别事件真伪的事件认证模型，进行事件真伪判别，最终实现对物联网事件真实性的保证以及对虚假事件的检测，提高物联网系统的安全性。
+
+具体来说，EGuard对每种智能家居事件进行分别考虑。对某一待认证事件$E$，其事件日志中n条记录的且时间戳表示为$t_1,\cdots ,t_n$；将智能家居系统中k个传感器表示为$S_1,\cdots S_k$，传感器数据时间序列分别表示为$S_1(t),\cdots ,S_k(t)$。此外，表~\ref{tab:notation}中总结了本节中出现的数学符号及其定义。
+
+\begin{figure}[!h]
+	\centering
+	\includegraphics[width=.99\textwidth]{pic/chap4/ev\_intro}
+	\caption{EGuard整体架构图}
+	\label{fig:ev_intro}
+\end{figure}
+
+\subsection{事件标注}
+\label{subsec:labeling}
+事件标注模块使用原始事件日志作为输入，输出为三元组形式的带标签事件$(E,t_j,l_j),j\in \{1,2,\cdots,n\}$，其中$t_j$为事件时间戳，$l\in \{0,1\}$为时间标签。具体来说，针对某一智能家居事件$E$，在时间轴上标注事件发生的时刻，并将其对应标签打为1（正样本）；同时，在事件发生时刻的间隔内进行采样，作为事件未发生的时刻，并将其对应标签打为0（负样本）。正样本表示此时刻事件真实发生，而负样本表示此时刻事件未发生。
+
+\subsection{特征构建}
+\label{subsec:feat_cons}
+特征构建模块使用上述得到的事件三元组以及传感器数据作为输入，输出所有传感器的特征值。为计算特征，首先要对传感器序列按照事件三元组中的时间戳进行加窗，然后在窗口内以某种方式计算特征。以下分别介绍传感器窗口选择以及特征计算的过程。
+
+\textbf{（1）传感器窗口选择：}
+正如在~\ref{fingerprint_description}中介绍的，事件只会在一个小时间邻域内影响传感器读数，故首先需要对此邻域的范围进行搜索，即最佳传感器窗口的选择。
+
+对于事件$E$和传感器$S_i$，定义一个时间窗口为$(t_{E,S_i}^-,t_{E,S_i}^+)$，即窗口起点位于事件发生前$t_{E,S}^-$秒，终点位于事件发生后$t_{E,S}^+$秒。首先选取一个窗口的时间范围$-4\leq t_{E,S_i}^- < t_{E,S_i}^+\leq 3,t^-,t^+\in N$，N为整数集。之后，对每个候选时间窗口，参照事件三元组中的某个时间戳$t_j$，在传感器数据序列$S_i(t)$上在时间戳$t_j$附近加窗，提取窗口范围内的传感器数据序列$S_i (t),t\in (t_j+t_{E,S_i}^-,t_j+t_{E,S_i}^+)$。然后，基于此序列进行特征计算（具体方法在下文中详细讲述），得到此序列的m个特征值，记为$f_{S_i,1}(t_j),\cdots ,f_{S_i,m}(t_j)$，并拼接得到特征向量$\vec{F_{S_i}}(t_j)=\{f_{S_i,1}(t_j),\cdots ,f_{S_i,m} (t_j)\}$，以此类推地对所有事件三元组$(E,t_j,l_j)$重复如上操作，得到与事件三元组一一对应的特征矩阵：
+
+\begin{equation}
+	\label{eq:feature_matrix}
+	\mathbf{F_{S_i}}=
+	\left[
+		\begin{array}{c}
+			\vec{F_{s_i}}(t_1) \\ 
+			\vec{F_{s_i}}(t_2) \\ 
+			\vec{F_{s_i}}(t_3) \\ 
+			\vdots \\ 
+			\vec{F_{s_i}}(t_n) \\ 
+		\end{array}
+	\right]
+	=
+	\left[
+		\begin{array}{ccc}
+			f_{si,1}(t_1) & \cdots & f_{s_i,m}(t_1) \\
+			f_{si,1}(t_2) & \cdots & f_{s_i,m}(t_2) \\
+			f_{si,1}(t_3) & \cdots & f_{s_i,m}(t_3) \\
+			\vdots & \vdots & \vdots \\
+			f_{si,1}(t_n) & \cdots & f_{s_i,m}(t_n) \\
+		\end{array}
+	\right]
+\end{equation}
+
+之后，从事件三元组序列$(E,t_1,l_1),\cdots ,(E,t_n,l_n)$中提取标签元素，得到标签序列$l=\{l_1,\cdots ,l_n\}$；同时从上述特征矩阵中提取每一列，作为维度特征与事件三元组一一对应的特征序列。例如，提取传感器$S_i$的第m个特征，其序列即为矩阵$\mathbf{F_{S_i}}$的第m列，记为$\mathbf{F_{S_i,m}}=\{f_{S_i,m}(t_1),\cdots ,f_{S_i,m}(t_n)\}$。通过上述过程，针对传感器$S_i$的所有m个特征，可以得到其特征序列$f_{S_i,m}(t_1),\cdots ,f_{S_i,m}(t_n)$。
+
+然后，对所有特征序列，分别计算其与标签序列的相对互信息量（Relative Mutual Information，RMI），并进一步计算智能家居事件$E$与传感器$S_i$之间相对互信息量，并作为传感器窗口选择的评判指标。具体来说，智能家居事件$E$与传感器$S_i$的RMI由此传感器下所有$m$个特征序列的RMI最大值决定，计算过程如下所示：
+
+\begin{equation}
+	\label{eq:rmi}
+	RMI_{E,S_i}={max}(RMI_{E,f_{S_i,u}})={max}(\frac{I(l;F_{S_i,u} )}{H(l)}),u\in \{1,2,\cdots,m\}
+\end{equation}
+
+其中，$I(\cdot)$代表两序列间的互信息量，$H(\cdot)$代表信息熵。
+
+最后，在对所有候选时间窗口进行上述计算后，选取RMI最大的候选作为最优时间窗口。
+
+
+\textbf{（2）特征计算：}
+
+由上一步得到最佳的传感器时间窗口后，再次使用事件三元组和原始传感器数据作为输入，对传感器数据进行加窗，并进一步基于加窗后数据计算特征值。与上一步不同的是，此步骤中只需直接使用最佳时间窗口进行加窗，而无需考虑其他候选窗口。
+
+在计算特征时，考虑到在智能家居环境中传感器本身具有一定的波动性，例如，在没有设备接入的情况下，温度总是会在下午较高，晚上或清晨较低。若这种波动与事件引起的物理环境变化混杂，则会对特征计算带来误差。故EGuard考虑传感器的变化值，以此消去传感器数值本身波动的影响。具体来说，对某一窗口内的序列而言，其差值由此窗口内每个数据点减去上一窗口的平均值得出，即$S_i(t_j)-\overline{S_i(t_{j-1})}$。
+
+对于具体的特征计算方法，EGuard选用了五种序列的统计特征，包括最小值、最大值、均值、和值和标准差。在传感器数据差值的基础上，这些统计特征基本足以描述传感器在短时间内的变化规律。因此，每个传感器序列可以得到五个特征序列，$k$个传感器共得到$m*k$个特征序列，其中$m$为5。这些序列中每个数据点均对应一个事件三元组。之后，将每个事件三元组对应的所有传感器的所有特征进行聚合，得到此事件三元组对应的特征向量，即：
+
+\begin{equation}
+	\vec{F(t_j)}=\{f_{S_1,1} (t_j),\cdots,f_{S_i,m} (t_j),f_{S_2,1} (t_j),\cdots,f_{S_2,m} (t_j),\cdots,f_{S_k,1} (t_j),\cdots,f_{S_k,m} (t_j)\}
+\end{equation}
+
+\subsection{传感器选择}
+
+传感器选择模块接收上一步得到的特征向量作为输入，通过训练一个特定的神经网络进行特征的重要性衡量，并以事件三元组中$l_j$作为训练标签。此模块的目的在于尽可能地减小用于事件认证的传感器数量，从而使EGuard达到轻量化的目的。此模块的输出为被选的传感器集合。
+
+对于智能家居场景来说，其事件在物理通道状态上的表现是较为复杂和隐性的。由于相比于传统的统计方法或简单机器学习模型，神经网络能够挖掘到数据之间更加隐性的关联，故EGuard选取了神经网络作为衡量特征重要性的模型。进一步地，正如本章引言所说，智能家居中传感器之间也存在者较强的相关性，为了进一步减小传感器数量，需要在多个富信息且高相关的传感器之间仅选择一个或少数。而依据神经网络领域的共识，使用L1正则化可以达到此目的。
+
+具体来说，EGuard采用了包含一层一对一（one-to-one）节点的多层感知机，以此层的权重向量代表输入特征向量每个元素的重要性。一对一层输出为输入和权重向量的哈达玛积，即逐元素相乘。对此层引入L1正则化后，其会对权重向量的值作约束，尽量地使其值绝对值之和最小，以此可以得到一个稀疏的结果（稀疏即向量中大部分元素为0）。而权重向量的元素为0代表其对应的特征在网络后面的结构中完全被舍去，即可代表此特征完全无用。
+
+\begin{figure}[!h]
+	\centering
+	\includegraphics[width=.4\textwidth]{pic/chap4/ev\_nn}
+	\caption{特征选择神经网络结构}
+	\label{fig:ev_nn}
+\end{figure}
+
+神经网络的具体结构如图\ref{fig:ev_nn}所示。输入层接受输入为$\vec{F(t_j)}$ ，其节点数为$5*k$即特征数量，$5$为特征种类，$k$为传感器数量。通过包含$m*k$个节点的带L1正则化的一对一层，之后通过两层带ReLU激活函数的全连接层，输出层为1个节点，使用Sigmoid激活函数，其目的是将输出压缩至0到1内，从而代表分类分数。之后设置分类阈值为0.5，分类分数高于此阈值则判定为正样本，低于此阈值判定为负样本。
+
+其中，在训练此神经网络时，EGuard使用二值交叉熵（Binary cross entropy，BCE）评判误差，假设输出的预测标签为$\hat{y_i}$，真实标签为$y_i$，一对一节点中的权重向量表示为$\vec{\omega}$，则神经网络的损失函数可以为：
+
+\begin{equation}
+	\label{eq:loss}
+	J=\frac{1}{n} \sum_{i=1}^n L(\hat{y_i},y_i) + \lambda\Vert\vec{\omega}\Vert_1
+\end{equation}
+
+其中，$\vec{\omega}$为一对一层的权重向量，$L(\hat{y_i},y_i)$为BCE损失函数，$\Vert\cdot\Vert_1$为L1范数，$\lambda$为L1正则化系数。
+
+需要注意的是，在参数更新过程中，实际的权重向量很难得到一个稀疏结果，而是得到一系列很接近0的较小值。这是由于特征维度过大，并且程序在计算梯度时存在近似误差导致的。为解决此问题，EGuard使用SGD-L1(clipping)优化算法\upcite{carpenter2008lazy, tsuruoka2009stochastic}，该算法是SGD（stochastic gradient descent，随机梯度下降）算法的一种改进。具体来说，此算法在每次迭代时保$证\vec{\omega}$中的每个权重不会越过0。整体的参数更新过程如算法~\ref{algorithm:update}所示。
+
+通过训练上述神经网络，所有重要程度为0的特征被去除，而其余特征被采用。进一步地，我们选择包含被采用特征的最小传感器集合作为最终选择结果，记为$S_v$。
+
+\RestyleAlgo{ruled}
+\begin{algorithm}[!h]
+	\caption{Neural network parameter update procedure}
+	\label{algorithm:update}
+	\LinesNumbered
+	\KwIn{Model parameters from the last iteration $\vec{\omega},\vec{\omega_1},\vec{\omega_2},\vec{\omega_3},\vec{b_1},\vec{b_2},\vec{b_3}$, 
+		loss $J$, learning rate $\eta_0$, $\eta_1$}
+	\KwOut{Model parameters after update $\vec{\omega'},\vec{\omega_1'},\vec{\omega_2'},\vec{\omega_3'},\vec{b_1'},\vec{b_2'},\vec{b_3'}$}
+	\For{each parameter $p \in (\vec{\omega},\vec{\omega_1},\vec{\omega_2},\vec{\omega_3},\vec{b_1},\vec{b_2},\vec{b_3})$}{
+		compute gradient $\frac{\delta J}{\delta p}$ using back-propagation; \\
+	}
+	\tcp{parameters excluding one-to-one layer}
+	\For{each parameter $p \in (\vec{\omega_1},\vec{\omega_2},\vec{\omega_3},\vec{b_1},\vec{b_2},\vec{b_3})$}{
+		$p'=p-\eta_1\frac{\delta J}{\delta p}$; \\
+	}
+	\tcp{parameters in one-to-one layer, using SGD-L1(Clipping)}
+	\For{each parameter $p \in \vec{\omega}$}{
+		$p'=p-\eta_0\frac{\delta J}{\delta p}$; \\
+		\tcp{limit the parameter sign changes}
+		\If{($p\cdot p'<0$)}{
+			$p'=0$; \\
+		}
+	}
+\end{algorithm}
+
+\subsection{事件指纹构建与机器学习分类}
+
+事件指纹构建模块根据传感器数据序列和被选取的传感器集合计算特征，作为事件指纹。特征计算方法与上述方法相同。具体来说，对每一事件三元组$(E,t_j,l_j)$，根据传感器数据序列，和通过上述步骤获取的用于事件认证的传感器集合，并利用上述步骤中计算特征向量的方法，计算传感器的特征，并将其聚合得到特征向量$\vec{F_{S_v}}(t_j) $作为事件指纹。
+
+机器学习分类模块则使用上述事件指纹作为输入，输出二值的判决结果，其中1代表事件的确发生，即此事件是真实事件；而0代表事件实际没有发生，则此事件是虚假事件。具体来说，在训练时，EGuard使用$\vec{F_{S_v}}(t_j) $作为输入，使用事件三元组中的$l_j$作为标签。使用SVM分类器的意义在于，SVM在特征维度较大的场景中也具有较高的效率，且能够减小方法在进行线上事件认证时的复杂度。
+
+在训练阶段结束后，为了对事件$E$进行认证，EGuard只需保留三类参数：最优时间窗口$(t_(E,S_i)^-,t_(E,S_i)^+ ),i\in \{1,2,\cdots,k\}$、用于认证的传感器集合$S_v$以及训练好的SVM分类器模型。
+
+\section{方案实现}
+
+本节介绍本文在EGuard实现上的细节。本文使用了牛津大学Birnbach等人收集和分享的数据集\upcite{peeves_dataset}作为数据来源，对EGuard方案进行了全面实现。除此之外，本文基于同一数据集实现了Birnbach本人的研究Peeves\upcite{birnbach_peeves_2019}，以进行横向对比。本节主要分以下三个方面对EGuard的实现细节进行介绍：预处理、传感器窗口选择、模型训练。环境方面，本文在一个Intel i5处理器，16GB内存的笔记本电脑上完成方案实现，编程语言为Python。
+
+在Peeves的实现方面，其使用的步骤与本文类似，但他们使用了RMI阈值来选择特征。在默认情况下，Peeves使用40\%的RMI阈值，即选择RMI高于0.4的特征，以限制特征的噪声并减少时间开销。本文的实现部分与其介绍保持一致。此外，本文调整这个阈值以获得不同的传感器数量，以便做更具体的实验评估，详细内容见~\ref{sec:eventveri_eval}。
+
+\subsection{预处理}
+
+预处理的目的是为了进行数据清洗，并得到三个子数据集用于不同的目的。此数据集由一台笔记本电脑和12台树莓派在办公室里收集，历时13天，其中包括49组传感器数据和22组事件记录。首先在数据清洗方面，本文依据数据集的说明文档删除了由设备故障造成的异常时间段中的数据点；对于说明文档中未提到的异常数据，如长时间内的连续离群点，本文进行了简单的数据观测，并将明显不合理的传感器序列进行排除。
+
+如~\ref{subsec:labeling}所述，由于负样本由在正样本时间间隔之间的时间轴上手动添加，故可以通过操纵采样率来控制负样本的样本总量。本文选取合适的间隔，使得到的样本总量约为10000个。之后，本文将所有样本分隔为三个子数据集，其中开发集（development set）占比为1/13，专用于进行时间窗口的选择；剩余的部分中，训练集占60\%，用于训练神经网络以及机器学习分类器，测试集占40\%，用于进一步评估。
+
+\subsection{传感器窗口选择}
+
+在传感器窗口的选择范围方面，时间窗口简化地表示为区间$(t^-,t^+)$，则本文选取候选时间窗口范围为$t^-\in [-4,3],t^+\in [t^-+1,4]$，共36个窗口。
+
+在窗口评价指标方面，本文选取指标为RMI。对于RMI的计算，一般方法为计算事件和传感器特征之间的互信息量$I(X;Y)$，用互信息量除以事件的信息熵$H(E)$。传统的互信息量计算公式如下所示：
+
+\begin{equation}
+	I(X;Y)=\Sigma_{y\in Y}\Sigma_{x\in X} p(x,y)log(\frac{p(x,y)}{p(x)p(y)})
+\end{equation}
+
+此基于概率的计算方法只有当随机变量$X$，$Y$是离散分布时才能取得较好的效果。然而大多数传感器特征的分布是连续的，每个取值均无重复，故无法计算每个取值的概率。传统离散化的方法涉及到分割区间数量的选取等问题，且会造成较大误差，而现有研究Peeves\upcite{birnbach_peeves_2019}使用了一种基于k-近邻的方法\upcite{ross2014mutual}来计算离散-连续的互信息量。然而，根据本文前期测试，此算法在计算离散-离散互信息时会产生很大的误差，故并不适合计算离散性质传感器特征的互信息。因此，对于离散的传感器特征，本文对其进行离散化，并使用上述基于概率的传统方法计算互信息量。此外，一些研究提出了适合于任意分布数据的互信息估计算法\upcite{gao2017estimating}，它可以应用于本工作的特征值的离散和连续混合的情况，但这种算法在实验过程中显示出很高的时间开销，故被弃用。
+
+\subsection{模型训练}
+
+传感器选择神经网络 使用PyTorch\upcite{pytorch}进行实现。输入节点的数量（即特征数量）为1340。网络为多层感知机，除一对一层外均为权力娜姐；包含两个隐藏层结构，分别有400和100个节点。优化器选用随机梯度下降（SGD），二元交叉熵（BCE）被用作误差的评判标准，通过增加一对一层权重向量的的L1范数来进行L1正则化，故整体损失函数表示为式~\ref{eq:loss}，其中$\lambda$是L1规则化的惩罚。调整$\lambda$可以改变稀疏程度并控制所选特征的数量，进而控制验证传感器组的大小。
+
+参数方面，本文尝试了不同的优化器和学习率，进而发现，改变优化器对收敛性能的影响不大。本文对一对一层的学习率以及其他层的学习率进行分别调整，以获得更快的权重向量更新和更稀疏的权重向量。根据实验，与其他层相比，设置更高的一对一层的学习率可以获得更稀疏的结果。对于超参数（包括学习率和λ），本文遍历了所有的候选参数，并对性能（f1-score）和传感器数量之间进行平衡考虑。详细来说，本文将f1-score基线设定为0.95，传感器数量基线设定为10。并通过计算一个分数$s=|f1-0.95|^{1.5}+|n\_sensors-10|$，从而鼓励高f1-score和低传感器数量，并通过挑选分数最高的超参数来实现参数选取。
+
+在SVM分类器方面，本文使用Python中的scikit-learn进行实现。由于负样本为时间轴上随机采样添加，其数量远远大于正样本，故引入了参数$class\_weight$用于两类样本中应用不同的惩罚$C$，以避免样本数量的不平衡造成分类边界的偏差。
+
+参数方面，根据测试，改变$C$对分类性能影响不大，而改变$class\_weight$对模型测试结果有轻微影响：当$class\_weight$从1开始增加时，结果有所改善，然而，在达到一定的阈值后，不仅模型测试结果很难随着$class\_weight$增加而改善，反而训练时间成本也会增加。对于SVM中的参数（包括核函数、$C$和$class\_weight$），使用网格搜索来遍历所有候选，并选取f1-score最高的组合。
+
+\section{实验评估}
+\label{sec:eventveri_eval}
+本节在上述EGuard实现的基础上，设计并进行了一系列实验评估，用于系统地测试并展示EGuard的性能。具体来说，本节的实验评估共分为以下四个部分：
+
+\begin{enumerate}
+	\item 虚假事件检测准确率测试
+	\item 事件指纹准确率测试
+	\item 传感器数量调整测试
+	\item 传感器选择案例研究
+\end{enumerate}
+
+\subsection{虚假事件检测准确率}
+\label{subsec:forged_events}
+本测试主要关注EGuard对虚假事件攻击的检测性能。为得到真实确切的测试结果，本实验通过模拟发起事件欺骗攻击，以表明EGuard设法检测到伪造的事件。
+
+本文使用的数据集包括事件记录和传感器数据。通过在数据集的事件记录中随机添加20个条目作为虚假事件，同时保持传感器数据不变，如此以来就可以模拟系统认为事件确实发生了，但传感器数据却没有相应变化的情况，这种情况也与真实的事件欺骗攻击相符。在添加虚假事件时，需要设置一个安全间隔（10秒），以避免与真实事件重叠造成混淆，从而造成传感器数据难以区分。
+
+在上述模拟攻击后，本实验基于预先得到的被选传感器集合计算特征以建立学习样本，然后使用预训练的SVM分类器进行预测，上述过程模拟了EGuard的在线运行过程。对于测试集，本实验保留了原本测试集中的所有正样本，即真实发生的事件；同时丢弃负样本，即未发生的事件，并使用先前注入的伪造事件作为代替的负样本进行测试。基于上述测试集的测试结果可以表明从物联网事件记录中检测潜在事件欺骗攻击的能力。除此以外，本实验对于Peeves\upcite{birnbach_peeves_2019}方案也实现了同样的模拟攻击。
+并评估其检测精度。
+
+指标方面，本实验选取f1-score作为指标，结果如表\ref{tab:f1}的左边部分所示。表\ref{tab:f1}的右边部分还列出了用于事件认证的传感器数量。结果显示，我们可以看到，对于17/22个事件，EGuard获得了大于0.9的f1-score，并且对于所有事件而言，其f1-score均大于0.75。此结果表明这表明EGuard在检测潜在的事件欺骗攻击方面足够有效。此外，EGuard的平均f1-score比Peeves提高了0.0124。另外，考虑到EGuard使用的传感器要少得多（Peeves平均5.45个，而EGuard为16.5个），这表明了EGuard可以使用较小的验证传感器集合来获得较好的结果，体现了其轻量性。
+
+\begin{table*}
+	\begin{center}
+		\caption{Comparative evaluation of $F1-score$ and~\textit{number of sensors} of three event verification approaches}
+			\resizebox{\textwidth}{!}{
+			\begin{tabular}{r|cc|cc|cc|cc}
+				\toprule
+				
+				\multicolumn{1}{c|}{\multirow{3}{*}{\textbf{Event name}}} & \multicolumn{2}{c|}{\textbf{Real \& Forged events (Sec.~\ref{subsec:forged events})}} & \multicolumn{4}{c|}{\textbf{Real \& Not happened events (Sec.~\ref{subsec:clf performance}})}      & \multicolumn{2}{c}{\multirow{2}{*}{\textbf{Number of sensors}}}                                                            \\
+				\cline{2-7}
+				\multicolumn{1}{c|}{}                                     & \multicolumn{2}{c|}{\textbf{F1-score}}                                     & \multicolumn{2}{c|}{\textbf{F1-score}}                                                                                      & \multicolumn{2}{c|}{\textbf{AUC}}                                                                                           & \multicolumn{2}{c}{}                                                                                                       \\
+				\cline{2-9}
+				\multicolumn{1}{c|}{}                                     & \multicolumn{1}{c}{\textbf{Peeves}} & \multicolumn{1}{c|}{\textbf{EGuard}} & \multicolumn{1}{c}{\textbf{Peeves}}  & \multicolumn{1}{c|}{\textbf{EGuard}} & \multicolumn{1}{c}{\textbf{Peeves}} & \multicolumn{1}{c|}{\textbf{EGuard}} & \multicolumn{1}{c}{\textbf{Peeves}} & \multicolumn{1}{c}{\textbf{EGuard}} \\
+				
+				\midrule
+				Window opened                                            & 0.9973                              & \textbf{1.0000}                     & 0.9665                              & \textbf{1.0000}                     & \textbf{1.0000}                     & \textbf{1.0000}                     & 32                                  & \textbf{3}                          \\
+				Light off                                                & 0.9938                              & \textbf{1.0000}                     & \textbf{1.0000}                     & 0.9442                              & \textbf{1.0000}                     & \textbf{1.0000}                     & 27                                  & \textbf{2}                          \\
+				Door closed                                              & \textbf{0.9996}                     & 0.9977                              & \textbf{1.0000}                     & 0.9979                              & \textbf{1.0000}                     & \textbf{1.0000}                     & 25                                  & \textbf{2}                          \\
+				Fridge opened                                            & \textbf{0.9893}                     & \textbf{0.9893}                     & \textbf{0.9883}                     & 0.9217                              & \textbf{1.0000}                     & 0.9982                              & 29                                  & \textbf{7}                          \\
+				PC on                                                    & 0.9634                              & \textbf{0.9881}                     & 0.9842                              & \textbf{0.9897}                     & 0.9624                              & \textbf{0.9999}                     & \textbf{3}                          & 5                                   \\
+				Fridge closed                                            & \textbf{1.0000}                     & 0.9872                              & 0.9883                              & \textbf{0.9893}                     & \textbf{1.0000}                     & 0.9925                              & 29                                  & \textbf{6}                          \\
+				Door opened                                              & \textbf{0.9992}                     & 0.9858                              & \textbf{0.9982}                     & 0.9974                              & \textbf{1.0000}                     & \textbf{1.0000}                     & 20                                  & \textbf{2}                          \\
+				Fan off                                                  & 0.9805                              & \textbf{0.9842}                     & 0.9500                              & \textbf{0.9616}                     & 0.9908                              & \textbf{0.9968}                     & 9                                   & \textbf{2}                          \\
+				Window closed                                            & \textbf{0.9866}                     & 0.9839                              & \textbf{0.9649}                     & 0.9088                              & \textbf{0.9999}                     & 0.9995                              & 25                                  & \textbf{6}                          \\
+				Fan on                                                   & 0.9395                              & \textbf{0.9804}                     & 0.9238                              & \textbf{0.9746}                     & 0.8878                              & \textbf{0.9989}                     & \textbf{2}                          & 5                                   \\
+				Coffee machine used                                      & \textbf{1.0000}                     & 0.9787                              & \textbf{1.0000}                     & \textbf{1.0000}                     & \textbf{1.0000}                     & \textbf{1.0000}                     & 34                                  & \textbf{5}                          \\
+				Light on                                                 & \textbf{0.9969}                     & 0.9779                              & \textbf{1.0000}                     & 0.9641                              & \textbf{1.0000}                     & \textbf{1.0000}                     & 23                                  & \textbf{5}                          \\
+				Screen off                                               & 0.9535                              & \textbf{0.9626}                     & 0.8657                              & \textbf{0.9735}                     & 0.8696                              & \textbf{0.9875}                     & \textbf{3}                          & 5                                   \\
+				Screen on                                                & \textbf{0.9719}                     & 0.9618                              & 0.9004                              & \textbf{0.9537}                     & 0.9514                              & \textbf{0.9577}                     & 9                                   & \textbf{4}                          \\
+				Camera on                                                & 0.9533                              & \textbf{0.9542}                     & 0.7925                              & \textbf{0.8248}                     & 0.9046                              & \textbf{0.9805}                     & 11                                  & \textbf{7}                          \\
+				Camera off                                               & 0.9180                              & \textbf{0.9268}                     & 0.7648                              & \textbf{0.8223}                     & 0.8997                              & \textbf{0.9340}                     & \textbf{10}                         & 14                                  \\
+				Shade up                                                 & 0.7918                              & \textbf{0.9013}                     & 0.4761                              & \textbf{0.9472}                     & 0.5479                              & \textbf{0.9789}                     & 13                                  & \textbf{6}                          \\
+				Shade down                                               & 0.7660                              & \textbf{0.8928}                     & 0.5032                              & \textbf{0.9140}                     & 0.5820                              & \textbf{0.9703}                     & 10                                  & \textbf{9}                          \\
+				PC off                                                   & \textbf{0.9233}                     & 0.8621                              & 0.7269                              & \textbf{0.9665}                     & 0.8539                              & \textbf{1.0000}                     & \textbf{4}                          & 5                                   \\
+				Radiator on                                              & 0.7552                              & \textbf{0.8303}                     & 0.4894                              & \textbf{0.8473}                     & 0.4687                              & \textbf{0.8180}                     & 16                                  & \textbf{8}                          \\
+				Doorbell used                                            & \textbf{0.8460}                     & 0.7927                              & 0.4472                              & \textbf{0.8095}                     & 0.7316                              & \textbf{0.8923}                     & 19                                  & \textbf{5}                          \\
+				Radiator off                                             & 0.7172                              & \textbf{0.7774}                     & 0.2123                              & \textbf{0.5636}                     & 0.4287                              & \textbf{0.8664}                     & 10                                  & \textbf{7}                          \\
+				Avg.                                                     & 0.9292                              & \textbf{0.9416}                     & 0.8156                              & \textbf{0.9214}                     & 0.8672                              & \textbf{0.9714}                     & 16.5                                & \textbf{5.4545}                     \\
+				\bottomrule             
+			\end{tabular}
+			}
+		\label{tab:f1}
+	\end{center}
+\end{table*}
+
+\subsection{事件指纹准确率}
+\label{subsec:clf performance}
+
+本测试主要关注EGuard构建的事件指纹是否能够真实准确地描述事件的物理行为。与上一实验不同的是，本测试直接使用原始数据集中分割出来的测试集，没有进行虚假事件攻击的模拟。在测试集中，正样本代表事件真实发生，而负样本代表事件未发生。此结果可以表明EGuard建立的事件指纹的内在性能，即对事件物理影响的拟合程度。此外，本测试与Peeves进行的测试类似，使用与Peeves相同的数据集以及评估方法使此实验的横向评估更具说服力。
+
+本实验直接使用SVM分类器给出的几个分类指标来显示EGuard的事件指纹性能。具体来说使用f1-score和AUC（曲线下面积），其中f1-score取自正样本和负样本f1-score的算数平均。对于AUC，我们绘制指接受者操作特征（Receiver Operating Characteristic，ROC）曲线，其以假阳性率（FPR）和真阳性率（TPR）为轴。对于ROC曲线来说，靠近左上角的曲线被认为是更好的结果，其代表当FPR小的时候，其TPR高，同时曲线下面积也大。
+
+对于本实验指标选择的理由，在实验正负样本数量不平衡的情况下，f1-score相比传统的准确率等指标更为合理，而AUC侧重于分类器的内在性能，因为在绘制ROC曲线时考虑到了分类器判决阈值的不同取值。表\ref{tab:f1}的右边部分显示了EGuard与Peeves的f1-score、AUC和传感器数量的对比。由结果可看出，EGuard方案中17/22个事件的f1-score大于0.9，这表明EGuard能够通过传感器数据建立有效的事件指纹模型；而我们发现Peeves在f1-score和AUC上分别平均落后0.106和0.104。
+
+更深入的来说，EGuard在 "暖气片打开"、"暖气片关闭"、"门铃使用"、"窗帘打开 "和 "窗帘关闭 "五个事件上有很大改进。这是由于EGuard中的传感器选择方法选取了对分类任务贡献更高的传感器集合。从平均情况来讲，EGuard可以使用更小的验证传感器集来拟合事件的物理环境规则，体现了其轻量化的特点。
+
+此外，本实验绘制了其中三个事件的ROC曲线（图\ref{fig:ev_roc}）。由图可得知，EGuard的曲线更接近于左上角，这表明EGuard的事件指纹模型具有更好的性能。
+
+\begin{figure}[!h]
+	\centering
+	\includegraphics[width=.99\textwidth]{pic/chap4/ev\_roc}
+	\caption{三个事件指纹的ROC曲线}
+	\label{fig:ev_roc}
+\end{figure}
+
+\subsection{传感器数量调整}
+
+本测试主要调整被选传感器的数量，并测试模型的准确性随传感器数量的变化规律。
+
+在Peeves的实现部分，我们通过改变RMI的阈值来得到不同的传感器数量。对EGuard而言，其传感器数量可通过调整L1正则项系数$\lambda$来实现，更高的$\lambda$表示惩罚力度更高，得到的权重向量就会更稀疏，进而筛选掉更多的传感器特征。图\ref{fig:ev_lambda}显示了传感器的数量对$\lambda$的变化规律。图上的每一个点，均为多次训练取平均的结果。
+
+一般来说，传感器的数量会随着$\lambda$的增加而减少。需要注意的是，在某些事件（如相机关闭）中，较高$\lambda$值会带来离群点（红色矩形标记），这是因为高$\lambda$降低了损失函数中预测值和准确值之间误差的重要性，导致损失无法下降，使神经网络难以拟合到真实规律。因此本实验限制$\lambda$的大小来避免这些异常值。
+
+\begin{figure}[!h]
+	\centering
+	\includegraphics[width=.70\textwidth]{pic/chap4/ev\_lambda}
+	\caption{传感器数量随正则化系数$\lambda$的变化规律}
+	\label{fig:ev_lambda}
+\end{figure}
+
+\begin{figure}[!h]
+	\centering
+	\includegraphics[width=.9\textwidth]{pic/chap4/ev\_3d}
+	\caption{AUC随传感器数量变化规律的3D曲面图}
+\label{fig:ev_3d}
+\end{figure}
+
+\begin{figure}[!h]
+	\centering
+	\includegraphics[width=.99\textwidth]{pic/chap4/ev\_amount}
+	\caption{三个事件的AUC随传感器数量的变化规律}
+	\label{fig:ev_amount}
+\end{figure}
+
+图\ref{fig:ev_3d}以三维曲面图的方式展示了两种方案的AUC随每个事件的传感器数量之间的关系。从图中可看出，对于大多数事件，绿色平面均略微高于黄色表面，这意味着EGuard在相同数量传感器的前提下获得更好的性能。进一步地，图\ref{fig:ev_amount}选取了图\ref{fig:ev_3d}中的几个事件截面。由此可以看出，在 "摄像头打开"事件中，两种方法的效果差别不大，而在 "散热器关闭 "和 "窗帘关闭"的事件中，EGuard性能较好。此外，此结果还表明，传感器的数量对分类性能的影响规律不明显。一方面是因为机器学习和神经网络的不确定性和随机性；另一方面可能是因为在本实验中，由于高$\lambda$造成收敛失败的限制，传感器数量的下界可能不够低。
+
+总的来说，通过一个可调整的L1正则项系数$\lambda$，EGuard可以灵活调整被选传感器数量。且从横向对比来看，在传感器数量相同的前提下EGuard表现出更好的性能。
+
+\subsection{传感器选择案例研究}
+
+本测试展示了两个传感器选择结果的具体案例，用于更加细粒度地说明EGuard传感器选择结果的合理性。
+
+首先，本实验通过计算传感器之间的相关系数，来研究对某事件而言各传感器之间的同质化程度。图\ref{fig:ev_heat}以热力图的形式展示了两种事件的传感器相关系数（取相关系数的绝对值），其中深色意味着高相关。此外，表\ref{tab:sensor_set}展示了传感器的具体选择结果和其对应的分类结果指标（AUC）。为了分析结果中传感器的同质性，本实验根据传感器相关系数对其进行聚类。具体来说，本实验以$1-|corr_{i,j}|$为传感器i和j之间的距离，并根据该距离进行层次聚类，如此以来即可将高相关的传感器划在同一簇中，同一簇中的传感器为事件指纹提供了同质化地信息。
+
+\begin{figure}[!h]
+	\centering
+	\includegraphics[width=.70\textwidth]{pic/chap4/ev\_heat}
+	\caption{传感器间相关性热力图}
+	\label{fig:ev_heat}
+\end{figure}
+
+\textbf{案例1：事件"开门"。}从图9a中，我们发现
+由热力图可看出，对于 "开门 "事件，传感器之间的相关性相对较低，但仍有一些深色的点，这意味着高度相关的传感器对数量较少。根据传感器选择结果显示，EGuard避免了在一个簇中选择多个传感器（簇A和簇B），并抛弃了Peeves选择的其他簇，因此大幅减少了传感器数量。
+
+为进一步说明，本实验还考察了被选传感器的物理意义。可看出EGuard只为"开门"事件选择了两个传感器。即pi7\_BME680（门旁边的温度、湿度和气压传感器）和pi8\_SenseHat（门上的加速度传感器）。基于常识，在门打开的过程中，门的加速度和门上的气压都会发生显著变化，故认为这两个传感器均为高度富信息的。并且实验表明仅仅使用这两个传感器就可以得到1的AUC，这意味着我们的方法在选择代表性传感器地同时避免了信息冗余。
+
+\textbf{案例2：事件"加热器关闭"。}
+热力图显示，对于"加热器关闭"事件而言，传感器间的相关性较高。可以看出在此情况下，EGuard选择了完全不同的传感器集，并显著提高了AUC。此结果意味着EGuard选择了更富信息、贡献更高的传感器，这是因为RMI指标并不能完全代表特征对分类器的实际贡献。
+
+总体来说，本实验用上述2个案例来证明。EGuard能够在高相关度的情况下选择信息量更大的传感器集，以此提高事件认证性能；而在大多数情况下，EGuard能够避免信息冗余，选择更小的传感器集，实现轻量化的目的。
+
+\begin{table}
+	\begin{center}
+		\caption{Verification sensor sets of different methods}
+		\subtable[Door opened verification sensor sets. 
+				We cluster the sensors according to their correlation, and denote the clusters as capital letters. Sensors in the same cluster provide similar information.]{
+				\begin{tabular}{c|c|ll}
+					\specialrule{0.15em}{0pt}{0pt}
+					\textbf{Method}               & \textbf{AUC}           & \multicolumn{2}{l}{\textbf{Verification sensor set}}\\
+					\specialrule{0.05em}{0pt}{0pt}
+					\specialrule{0.05em}{1pt}{0pt}
+					\multirow{2}{*}{\textbf{EGuard}} & \multirow{2}{*}{1.0000} & \textit{Cluster A:} & pi7\_BME680            \\
+					\cline{3-4}
+					&                        & \textit{Cluster B:}         & pi8\_SenseHat                                        \\
+					
+					\hline
+					\multirow{5}{*}{Peeves}       & \multirow{5}{*}{1.0000}   & \textit{Cluster A:}  & 					
+					\begin{tabular}[c]{@{}l@{}}
+						pi10\_BME680\_IN, pi10\_BME680\_OUT \\
+						pi1\_microphone, pi2\_microphone, pi3\_microphone \\
+						pi5\_microphone, pi7\_microphone, pi9\_microphone  \\
+						pi3\_BME680, pi7\_BME680  \\
+					\end{tabular}   \\
+					\cline{3-4}
+					& & \textit{Cluster B:}         & 					
+					\begin{tabular}[c]{@{}l@{}}
+						pi1\_BMP280, pi2\_BMP280, pi5\_BMP280 \\
+						pi6\_BMP280, pi8\_SenseHat  \\
+					\end{tabular}   \\
+					\cline{3-4}
+					& & \textit{Cluster C:}         & pi1\_TSL2560, pi7\_TSL2560 \\
+					\cline{3-4}
+					& & \textit{Cluster D:}         & pi1\_RSS \\  
+					\cline{3-4}
+					& & \textit{Cluster E:}         & pi7\_RSS  \\
+					\specialrule{0.15em}{0pt}{0pt}    
+				\end{tabular}
+		\label{tab:sensor_set_1}
+		}
+		
+		\qquad
+		
+		\subtable[Radiator off verification sensor sets]{
+				\begin{tabular}{c|c|l}
+					\specialrule{0.15em}{0pt}{0pt}
+					\textbf{Method}               & \textbf{AUC}           & \textbf{Verification sensor set}\\
+					\specialrule{0.05em}{0pt}{0pt}
+					\specialrule{0.05em}{1pt}{0pt}
+					\textbf{EGuard} & 0.8664 & 
+					\begin{tabular}[c]{@{}l@{}}
+						pi11\_MLX90640, pi12\_MLX90640, pi3\_MPU6050  \\
+						CamPower, pi4\_MPU6050, Pi5\_TSL2560, pi9\_MPU6050 \\
+					\end{tabular}              \\
+					\hline
+					Peeves     & 0.4287   & 
+					\begin{tabular}[c]{@{}l@{}}
+						pi5\_RSS, PCPower, pi10\_BME680\_IN  \\
+						pi1\_BMP280, pi2\_RSS, pi6\_BMP280 \\
+						FanPower, ScreenPower, pi7\_RSS, WindowShadePower  \\
+					\end{tabular}              \\
+					\specialrule{0.15em}{0pt}{0pt} 
+				\end{tabular}
+			\label{tab:sensor_set_2}
+		}
+		\label{tab:sensor_set}
+	\end{center}
+\end{table}
+
+
+\section{讨论}
 
